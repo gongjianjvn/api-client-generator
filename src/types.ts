@@ -14,7 +14,9 @@ export interface Definition {
 
   isGeneric?: boolean;
   basicName?: string;
-  
+  basicNameWithGeneric?: string;
+  generatedFileName?: string;
+
   renderFileName?(): RenderFileName; // generate dash-case file names to templates
 }
 
@@ -71,6 +73,7 @@ export interface Method {
   readonly hasJsonResponse?: boolean; // if false, default toJson() should not be called TODO
   readonly response?: string;  // method return type
   readonly responseTypeName?: string; // method return type without prefix
+  readonly responseBasicTypeName?: string; // 没前缀，也没范型
 }
 
 export interface ResponseType {

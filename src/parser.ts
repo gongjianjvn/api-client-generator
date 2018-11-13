@@ -29,6 +29,9 @@ import {
   logWarn,
   compareStringByKey,
   typeNameConcrete4Generic,
+  getNameExcludeGeneric4JsName,
+  isGeneric4JsName,
+  getBasicNameWithGeneric,
 } from './helper';
 
 interface Parameters {
@@ -74,6 +77,9 @@ export function createMustacheViewModel(swagger: Swagger, swaggerTag: string | u
     serviceVarName: camelSwaggerTag ? `${toCamelCase(swaggerTag, true)}Client` : 'Client',
     pathPrefix: options.pathPrefix,
   };
+
+  // viewModel.definitions.forEach(def => console.log(def.name));
+
   return viewModel;
 }
 
@@ -119,6 +125,7 @@ function parseMethods({paths, security, parameters}: Swagger, swaggerTag?: strin
               /{(.*?)}/g,
               (_: string, ...args: string[]): string => `\${args.${toCamelCase(args[0])}}`),
             responseTypeName: responseType.name,
+            responseBasicTypeName: getNameExcludeGeneric4JsName(responseType.name || ''),
             response: prefixImportedModels(responseType.type),
             description: replaceNewLines(operation.description, '$1   * '),
           };
@@ -149,7 +156,8 @@ function parseDefinitions(
 
   if (methods) {
     const filterByName = (defName: string, parentDefs: Definition[] = []): Definition[] => {
-      const namedDefs = allDefs.filter(({name}) => name === defName);
+      // const namedDefs = allDefs.filter(({name}) => name === defName);
+      const namedDefs = allDefs.filter(({basicName}) => basicName === defName);
       return namedDefs
         .reduce<Definition[]>(
           (acc, def) => [
@@ -159,7 +167,7 @@ function parseDefinitions(
               .reduce<Definition[]>(
                 (a, prop) => parentDefs.some(({name}) => name === prop.typescriptType)
                   ? a // do not parse if type def is already in parsed definitions
-                  : [...a, ...filterByName(prop.typescriptType!, namedDefs)],
+                  : [...a, ...filterByName(prop.typescriptType, namedDefs)],
                 []
               ),
 
@@ -177,7 +185,8 @@ function parseDefinitions(
             ...a,
             ...filterByName(toCamelCase(param.typescriptType, false)),
           ],
-          filterByName(toCamelCase(method.responseTypeName, false))
+          // filterByName(toCamelCase(method.responseTypeName, false))
+          filterByName(toCamelCase(method.responseBasicTypeName, false))
         )
       ],
       []
@@ -223,6 +232,8 @@ function defineEnum(
     isNumeric,
     imports: [],
     renderFileName: (): RenderFileName => (text: string, render: Render): string => fileName(render(text), 'enum'),
+
+    ... (populateOtherFields(definitionKey, 'enum'))
   };
 }
 
@@ -299,6 +310,8 @@ function defineInterface(schema: Schema, definitionKey: string): Definition {
     ...allOfProps,
   } as { [propertyName: string]: Schema });
 
+  
+
   return {
     name: name,
     description: replaceNewLines(schema.description, '$1 * '),
@@ -314,7 +327,25 @@ function defineInterface(schema: Schema, definitionKey: string): Definition {
     isEnum: false,
     extend: extendInterface,
     renderFileName: (): RenderFileName => (text: string, render: Render): string => fileName(render(text), 'model'),
+    ... (populateOtherFields(definitionKey, 'model'))
   };
+}
+
+function populateOtherFields(definitionKey: string, type: 'model' | 'enum') {
+  const basicName = getNameExcludeGeneric4JsName(definitionKey);
+  console.log(basicName);
+  const fields = {
+    // 范型
+    isGeneric: isGeneric4JsName(definitionKey ? definitionKey : ''),
+    // 范型的基本名称
+    basicName: basicName,
+    // 类型的名称 + 范型
+    basicNameWithGeneric: getBasicNameWithGeneric(definitionKey),
+    // 文件名称
+    generatedFileName: fileName(basicName, type)
+  }
+  console.log(fields.generatedFileName);
+  return fields;
 }
 
 function determineResponseType(responses: { [responseName: string]: Response }): ResponseType {
@@ -389,11 +420,9 @@ function transformParameters(
       name,
       typescriptType,
     };
-  }).filter((p: any) => {
-    // 这个参数是从网关拿到的；
-    return !(p.isHeaderParameter && p.name === 'uid')
   })
-  ;
+  // 这个参数是从网关拿到的；
+  .filter((p: any) =>  !(p.isHeaderParameter && p.name === 'uid'));
 }
 
 function determineParamType(paramType: string | undefined): { isBodyParameter?: boolean } |

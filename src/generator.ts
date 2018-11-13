@@ -6,7 +6,7 @@ import { parse as swaggerFile, validate } from 'swagger-parser';
 import { Operation, Path, Spec as Swagger } from 'swagger-schema-official';
 import { promisify } from 'util';
 import { MustacheData, GenOptions, Definition } from './types';
-import { fileName, logWarn, flattenAll, compareStringByKey, isGeneric4JsName, getNameExcludeGeneric4JsName, dashCase } from './helper';
+import { logWarn, flattenAll, compareStringByKey, dashCase } from './helper';
 import { createMustacheViewModel } from './parser';
 
 const ALL_TAGS_OPTION = 'all';
@@ -42,13 +42,17 @@ export async function generateAPIClient(options: GenOptions): Promise<string[]> 
     : specifiedTags[0] === ALL_TAGS_OPTION
       ? allTags
       : specifiedTags;
-      
+
   // console.log(allTags);
   // console.log(specifiedTags);
   // console.log(usedTags);
 
   const apiTagsData = usedTags.map(tag => createMustacheViewModel(swaggerDef, tag || undefined, options));
   // console.log(apiTagsData);
+
+  // apiTagsData.forEach( ({definitions}) => {
+  //   definitions.forEach(def => console.log(def.name));
+  // })
 
   // sort the definitions by name and removes duplicates
   const allDefinitions = apiTagsData.map(({definitions}) => definitions).reduce<Definition[]>(
@@ -79,6 +83,7 @@ export async function generateAPIClient(options: GenOptions): Promise<string[]> 
           //   : [],
         ]);
       }),
+
       generateModels(allDefinitions, options.outputPath),
     ]
   );
@@ -117,17 +122,6 @@ async function generateModels(
     await promisify(mkdir)(outputDir);
   }
 
-  definitions.forEach(definition => {
-    Object.assign(definition, {
-      // 文件名称
-      generatedFileName: fileName(definition.name, definition.isEnum ? 'enum' : 'model'),
-      // 范型
-      isGeneric: isGeneric4JsName(definition.name ? definition.name : ''),
-      // 范型的基本名称
-      basicName: getNameExcludeGeneric4JsName(definition.name as any),
-    });
-  })
-
   // 处理范型， 处理文件名
   const modelIndexes = definitions.filter(definition => {
     // console.log(definition);
@@ -141,7 +135,8 @@ async function generateModels(
   await promisify(writeFile)(outIndexFile, Mustache.render(modelExportTemplate, {
     definitions: modelIndexes
   }), 'utf-8');
-
+  // 避免重复生成model;
+  const set: string[] = [];
   // generate API models
   return Promise.all([
     ...definitions
@@ -151,7 +146,12 @@ async function generateModels(
       if (!definition.isGeneric) {
         return true;
       }
-      return !definitions.some( ({name}) => name === definition.basicName);
+      // Message<T> 这样去重；
+      if (set.indexOf(definition.basicNameWithGeneric) === -1) {
+        set.push(definition.basicNameWithGeneric);
+        return true;
+      }
+      return false;
     })
     .map(async (definition) => {
       if (definition.isGeneric) {
@@ -160,20 +160,22 @@ async function generateModels(
           ...definition,
           properties: definition.properties.map((prop) => ({
             ...prop,
-            typescriptType: (function(type, desc) {
-              if (desc && desc.indexOf("<") !== -1) {
-                return desc.substring(desc.indexOf("<") + 1, desc.indexOf(">"));
+            typescriptType: ( (type: string, desc: string): string => {
+              if (desc && desc.indexOf('<') !== -1) {
+                return desc.substring(desc.indexOf('<') + 1, desc.indexOf('>'));
               }
               return type;
-            })(prop.typescriptType, prop.description)
+            })(prop.typescriptType || '', prop.description || '')
           }))
-        }
+        };
       }
       const result = Mustache.render(modelTemplate, definition);
-      const outfile = join(outputDir, `${fileName(definition.name, definition.isEnum ? 'enum' : 'model')}.ts`);
+      // const outfile = join(outputDir, `${fileName(definition.name, definition.isEnum ? 'enum' : 'model')}.ts`);
+      console.log(`${definition.generatedFileName}.ts`);
+      const outfile = join(outputDir, `${definition.generatedFileName}.ts`);
 
       await ensureDir(dirname(outfile));
-      await promisify(writeFile)(outfile, result, 'utf-8');
+      await promisify(writeFile)(outfile, result, {encoding: 'utf-8', flag: 'w'});
       return outfile;
     }),
     outIndexFile,
