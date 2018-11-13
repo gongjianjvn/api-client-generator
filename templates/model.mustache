@@ -1,0 +1,32 @@
+/* tslint:disable */
+{{^isEnum}}
+{{#imports.length}}
+import {
+{{#imports}}
+  {{.}},
+{{/imports}}
+} from '.';
+{{/imports.length}}
+
+{{#description}}
+/**
+ * {{&.}}
+ */
+{{/description}}export interface {{&name}} {{#extend}}extends {{.}} {{/extend}}{
+{{#properties}}
+  {{&name}}?: {{#isDictionary}}{ [key: string]: {{typescriptType}} }{{/isDictionary}}{{^isDictionary}}{{typescriptType}}{{/isDictionary}}{{#isArray}}[]{{/isArray}};{{#description}}  // {{&.}}{{/description}}
+{{/properties}}
+}
+{{/isEnum}}
+{{#isEnum}}
+
+{{#description}}
+/**
+ * {{&.}}
+ */
+{{/description}}export enum {{&name}} {
+    {{#properties}}
+  {{name}} = {{#isNumeric}}{{value}}{{/isNumeric}}{{^isNumeric}}"{{value}}"{{/isNumeric}},
+    {{/properties}}
+}
+{{/isEnum}}

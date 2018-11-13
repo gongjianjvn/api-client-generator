@@ -17,15 +17,26 @@ const optimist = opt
   .alias('v', 'verbose')
   .alias('t', 'splitPathTags')
   .alias('m', 'skipModule')
+  .alias('p', 'pathPrefix')
   .describe('s', 'Path to the swagger file')
   .describe('o', 'Path where generated files should be emitted')
   .describe('C', 'Autocommit changes')
   .describe('v', 'Print error stack traces')
+  .describe('p', 'API路径参数的前缀')
   .describe('t', 'Generates services and models only for the specified tags.'
     + ' Use `,` (comma) as the separator for multiple tags. Use `all` to emit a service per tag')
   .describe('m', 'Skip creating index file with module export');
 
 const argv = optimist.argv;
+
+// const argv = {
+//   help: '',
+//   source: ' http://localhost:8360/v2/api-docs',
+//   output: './gongjj',
+//   splitPathTags: '',
+//   skipModule: false,
+//   commit: false,
+// }
 
 if (argv.help) {
   optimist.showHelp();
@@ -41,7 +52,8 @@ const options: GenOptions = {
   outputPath: argv.output || './output',
   sourceFile: argv.source,
   splitPathTags: argv.splitPathTags ? argv.splitPathTags.split(',') : [],
-  skipModuleExport: argv.skipModule === true || argv.skipModule === 'true'
+  skipModuleExport: argv.skipModule === true || argv.skipModule === 'true' as any,
+  pathPrefix: argv.pathPrefix || '',
 };
 
 
@@ -51,7 +63,7 @@ const generate: typeof generateAPIClient = argv.commit ?
 
 generate(options)
   .then(newFiles => {
-    console.info('Angular API client generated successfully');
+    console.info('API client generated successfully');
 
     const legacyFiles = readdirSync(join(argv.output, MODEL_DIR_NAME))
       .map(file => join(argv.output, MODEL_DIR_NAME, file))

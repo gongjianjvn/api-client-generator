@@ -71,7 +71,7 @@
       true,
       140
     ],
-    "no-any": true,
+    "no-any": false,
     "no-arg": true,
     "no-bitwise": true,
     "no-boolean-literal-compare": true,

@@ -12,7 +12,7 @@
     ],
     "noLib": false,
     "removeComments": true,
-    "strict": true,
+    "strict": false,
     "sourceMap": true,
     "declaration": false,
     "allowSyntheticDefaultImports": true,
@@ -30,6 +30,7 @@
     ]
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "gongjj"
   ]
 }

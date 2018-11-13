@@ -1,0 +1,63 @@
+/* tslint:disable */
+import request, { RequestOptions } from '@/utils/request';
+
+{{#definitions.length}}
+import * as models from '.{{#swaggerTag}}./..{{/swaggerTag}}/models';
+{{/definitions.length}}
+
+/**
+ * 
+ */
+export class {{&serviceName}} {
+
+  readonly pathPrefix: string = `{{&pathPrefix}}`;
+
+{{#methods}}
+  {{#description}}
+  /**
+   * {{&.}}
+   */
+{{/description}}  {{&methodName}}(
+  {{#parameters.length}}
+    args: {
+      {{#parameters}}
+      {{&camelCaseName}}{{^isRequired}}?{{/isRequired}}: {{importType}}{{#isArray}}[]{{/isArray}},{{#description}}  //{{^isRequired}} (optional){{/isRequired}} {{&.}}{{/description}}
+      {{/parameters}}
+    },
+  {{/parameters.length}}
+    options?: RequestOptions
+  ): Promise<{{&response}}> {
+    options = {
+      ...(options || {}),
+      method: '{{methodType}}',
+    {{#hasQueryParam}}
+      queryParams: {
+      {{#parameters}}
+        {{#isQueryParameter}}
+        '{{&name}}': args.{{&camelCaseName}},
+        {{/isQueryParameter}}
+      {{/parameters}}
+      },
+    {{/hasQueryParam}}
+    {{#hasHeaderParam}}
+      headers: {
+      {{#parameters}}
+        {{#isHeaderParameter}}
+        '{{&name}}': args.{{&camelCaseName}},
+        {{/isHeaderParameter}}
+      {{/parameters}}
+      },
+    {{/hasHeaderParam}}
+    {{#parameters}}
+      {{#isBodyParameter}}
+      body: args.{{&camelCaseName}},
+      {{/isBodyParameter}}
+    {{/parameters}}
+    }
+    return request<{{&response}}>(`${this.pathPrefix}{{&path}}`, options);
+  }
+  
+{{/methods}}
+}
+
+export const {{&serviceVarName}} = new {{&serviceName}}();

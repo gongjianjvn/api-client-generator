@@ -14,7 +14,8 @@ import {
   Property,
   Render,
   RenderFileName,
-  ResponseType
+  ResponseType,
+  GenOptions
 } from './types';
 import {
   BASIC_TS_TYPE_REGEX,
@@ -27,6 +28,7 @@ import {
   typeName,
   logWarn,
   compareStringByKey,
+  typeNameConcrete4Generic,
 } from './helper';
 
 interface Parameters {
@@ -53,21 +55,26 @@ type EnumType = string[] | number[] | boolean[] | {}[];
 // needed because swagger spec param doesn't include ref and enum
 type ExtendedSwaggerParam = SwaggerParameter & { $ref?: string, 'enum'?: EnumType };
 
-export function createMustacheViewModel(swagger: Swagger, swaggerTag?: string): MustacheData {
+export function createMustacheViewModel(swagger: Swagger, swaggerTag: string | undefined, options: GenOptions): MustacheData {
   const methods = parseMethods(swagger, swaggerTag);
+  // console.log(swagger);
   const camelSwaggerTag = toCamelCase(swaggerTag, false);
-  return {
+  const viewModel = {
     isSecure: !!swagger.securityDefinitions,
     swagger: swagger,
     swaggerTag,
     domain: determineDomain(swagger),
     methods: methods,
     definitions: parseDefinitions(swagger.definitions, swagger.parameters, swaggerTag ? methods : undefined),
-    serviceName: camelSwaggerTag ? `${camelSwaggerTag}APIClient` : 'APIClient',
-    serviceFileName: fileName(camelSwaggerTag ? `${camelSwaggerTag}APIClient` : 'api-client', 'service'),
-    interfaceName: camelSwaggerTag ? `${camelSwaggerTag}APIClientInterface` : 'APIClientInterface',
-    interfaceFileName: fileName(camelSwaggerTag ? `${camelSwaggerTag}APIClient` : 'api-client', 'interface'),
+    serviceName: camelSwaggerTag ? `${camelSwaggerTag}Client` : 'Client',
+    serviceFileName: fileName(camelSwaggerTag ? `${camelSwaggerTag}Client` : 'client', 'service'),
+    interfaceName: camelSwaggerTag ? `${camelSwaggerTag}ClientInterface` : 'ClientInterface',
+    interfaceFileName: fileName(camelSwaggerTag ? `${camelSwaggerTag}Client` : 'client', 'interface'),
+
+    serviceVarName: camelSwaggerTag ? `${toCamelCase(swaggerTag, true)}Client` : 'Client',
+    pathPrefix: options.pathPrefix,
   };
+  return viewModel;
 }
 
 export function determineDomain({schemes, host, basePath}: Swagger): string {
@@ -94,7 +101,7 @@ function parseMethods({paths, security, parameters}: Swagger, swaggerTag?: strin
         return supportedMethods.indexOf(methodType.toUpperCase()) !== -1 && // skip unsupported methods
           (!swaggerTag || (op.tags && op.tags.includes(swaggerTag))); // if tag is defined take only paths including this tag
       }).map(([methodType, operation]: [string, Operation]) => {
-          const responseType = determineResponseType(operation.responses);
+          const responseType = determineResponseType(operation.responses as any);
           return {
             hasJsonResponse: true,
             isSecure: security !== undefined || operation.security !== undefined,
@@ -104,7 +111,7 @@ function parseMethods({paths, security, parameters}: Swagger, swaggerTag?: strin
             ),
             methodType: methodType.toUpperCase() as MethodType,
             parameters: transformParameters(
-              [...(pathDef.parameters || []), ...(operation.parameters || [])],
+              [...(pathDef.parameters || []), ...(operation.parameters || [])] as any,
               parameters || {}
             ),
             // turn path interpolation `{this}` into string template `${args.this}
@@ -116,7 +123,12 @@ function parseMethods({paths, security, parameters}: Swagger, swaggerTag?: strin
             description: replaceNewLines(operation.description, '$1   * '),
           };
         }
-      )
+      ).map((temp) => ({
+          ...temp,
+          // 是否有查询参数，header 参数；
+          hasQueryParam: ((temp.parameters || []) as any).some((prop: Parameter) => prop.isQueryParameter),
+          hasHeaderParam: ((temp.parameters || []) as any).some((prop: Parameter) => prop.isHeaderParameter),
+      }))
     ));
 }
 
@@ -149,8 +161,10 @@ function parseDefinitions(
                   ? a // do not parse if type def is already in parsed definitions
                   : [...a, ...filterByName(prop.typescriptType!, namedDefs)],
                 []
-              )
+              ),
+
           ],
+
           namedDefs
         );
     };
@@ -331,13 +345,13 @@ function determineResponseType(responses: { [responseName: string]: Response }):
     }
 
     const name = items.$ref ? dereferenceType(items.$ref) : items.type;
-    const type = nullable ? `${typeName(name, true)} | null` : typeName(name, true);
+    const type = nullable ? `${typeNameConcrete4Generic(name, true)} | null` : typeNameConcrete4Generic(name, true);
     return {name, type};
   }
 
   if (schema.$ref != null) {
     const name = dereferenceType(schema.$ref);
-    const type = nullable ? `${typeName(name)} | null` : typeName(name);
+    const type = nullable ? `${typeNameConcrete4Generic(name)} | null` : typeNameConcrete4Generic(name);
     return {name, type};
   }
 
@@ -375,7 +389,11 @@ function transformParameters(
       name,
       typescriptType,
     };
-  });
+  }).filter((p: any) => {
+    // 这个参数是从网关拿到的；
+    return !(p.isHeaderParameter && p.name === 'uid')
+  })
+  ;
 }
 
 function determineParamType(paramType: string | undefined): { isBodyParameter?: boolean } |

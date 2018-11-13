@@ -11,6 +11,10 @@ export interface Definition {
   readonly description?: string;
   readonly isEnum?: boolean;
   readonly isNumeric?: boolean; // used for determining if string or numeric enum should be generated
+
+  isGeneric?: boolean;
+  basicName?: string;
+  
   renderFileName?(): RenderFileName; // generate dash-case file names to templates
 }
 
@@ -94,6 +98,9 @@ export interface GenOptions {
    * Skip creating index file with module export
    */
   skipModuleExport?: boolean;
+
+  /** API路径的前缀，后台的API统一通过网关地址访问，加一个前缀，将该前缀的请求导到网关 */
+  pathPrefix?: string;
 }
 
 export type ClientGenerator = (...args: any[]) => Promise<string[]>; // tslint:disable-line no-any
