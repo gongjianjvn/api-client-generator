@@ -122,19 +122,26 @@ async function generateModels(
     await promisify(mkdir)(outputDir);
   }
 
+  // 避免重复生成model;
+  const indexDupSet: string[] = [];
   // 处理范型， 处理文件名
   const modelIndexes = definitions.filter(definition => {
     // console.log(definition);
     if (!definition.isGeneric) {
       return true;
     }
-    return !definitions.some( ({name}) => name === definition.basicName);
+     // Message<T> 这样去重；
+    if (indexDupSet.indexOf(definition.basicNameWithGeneric) === -1) {
+      indexDupSet.push(definition.basicNameWithGeneric);
+      return true;
+    }
+    return false;
   });
-
-  // generate model export index for all the generated models
+  // 生成Model的导出index;
   await promisify(writeFile)(outIndexFile, Mustache.render(modelExportTemplate, {
     definitions: modelIndexes
   }), 'utf-8');
+
   // 避免重复生成model;
   const set: string[] = [];
   // generate API models
